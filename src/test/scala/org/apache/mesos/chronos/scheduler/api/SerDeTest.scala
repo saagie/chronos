@@ -1,7 +1,7 @@
 package org.apache.mesos.chronos.scheduler.api
 
 import org.apache.mesos.chronos.scheduler.jobs.constraints.{LikeConstraint, EqualsConstraint}
-import org.apache.mesos.chronos.scheduler.jobs.{DependencyBasedJob, DockerContainer, EnvironmentVariable, ScheduleBasedJob, _}
+import org.apache.mesos.chronos.scheduler.jobs.{DependencyBasedJob, DockerContainer, EnvironmentVariable, PortMappings, ScheduleBasedJob, _}
 import org.apache.mesos.chronos.utils.{JobDeserializer, JobSerializer}
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.module.SimpleModule
@@ -28,11 +28,16 @@ class SerDeTest extends SpecificationWithJUnit {
         Volume(None, "container/dir", None)
       )
 
+      val portMappings = Some(Seq(
+        PortMappings(10000, 80, Protocol.TCP),
+        PortMappings(80, 0, Protocol.UDP)
+      )) : Option[Seq[PortMappings]]
+
       val forcePullImage = false
 
       var parameters = scala.collection.mutable.ListBuffer[Parameter]()
 
-      val container = DockerContainer("dockerImage", volumes, parameters, NetworkMode.BRIDGE, forcePullImage)
+      val container = DockerContainer("dockerImage", volumes, parameters, NetworkMode.BRIDGE, forcePullImage, portMappings)
 
       val arguments = Seq(
         "-testOne"
@@ -71,10 +76,15 @@ class SerDeTest extends SpecificationWithJUnit {
         Volume(None, "container/dir", None)
       )
 
+      val portMappings = Some(Seq(
+        PortMappings(10000, 80, Protocol.TCP),
+        PortMappings(80, 0, Protocol.UDP)
+      )) : Option[Seq[PortMappings]]
+
       val forcePullImage = true
       var parameters = scala.collection.mutable.ListBuffer[Parameter]()
 
-      val container = DockerContainer("dockerImage", volumes, parameters, NetworkMode.HOST, forcePullImage)
+      val container = DockerContainer("dockerImage", volumes, parameters, NetworkMode.HOST, forcePullImage, portMappings)
 
       val arguments = Seq(
         "-testOne"

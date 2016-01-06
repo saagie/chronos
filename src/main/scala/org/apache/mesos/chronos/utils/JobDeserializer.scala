@@ -144,6 +144,10 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
       if (node.has("runAsUser") && node.get("runAsUser") != null) node.get("runAsUser").asText
       else JobDeserializer.config.user()
 
+    val lastHost =
+      if (node.has("lastHost") && node.get("lastHost") != null) node.get("lastHost").asText
+      else ""
+
     var container: DockerContainer = null
     if (node.has("container")) {
       val containerNode = node.get("container")
@@ -167,6 +171,20 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         }.foreach(volumes.add)
       }
 
+      val portMappings = scala.collection.mutable.ListBuffer[PortMappings]()
+      if (containerNode.has("portMappings")) {
+        containerNode.get("portMappings").elements().map {
+          case node: ObjectNode =>
+            val hostPort =
+              if (node.has("hostPort")) node.get("hostPort").asInt()
+              else 0
+            val protocol =
+              if (node.has("protocol")) Protocol.withName(node.get("protocol").asText.toUpperCase)
+              else Protocol.TCP
+            PortMappings(node.get("containerPort").asInt(), hostPort, protocol)
+        }.foreach(portMappings.add)
+      }
+
       val forcePullImage =
         if (containerNode.has("forcePullImage") && containerNode.get("forcePullImage") != null)
           Try(containerNode.get("forcePullImage").asText.toBoolean).getOrElse(false)
@@ -180,7 +198,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         }.foreach(parameters.add)
       }
 
-      container = DockerContainer(containerNode.get("image").asText, volumes, parameters, networkMode, forcePullImage)
+      container = DockerContainer(containerNode.get("image").asText, volumes, parameters, networkMode, forcePullImage, Option(portMappings.to[Seq]))
     }
 
     val constraints = scala.collection.mutable.ListBuffer[Constraint]()
@@ -209,7 +227,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris, highPriority = highPriority,
         runAsUser = runAsUser, container = container, environmentVariables = environmentVariables, shell = shell,
         arguments = arguments, softError = softError, dataProcessingJobType = dataProcessingJobType,
-        constraints = constraints)
+        constraints = constraints, lastHost = lastHost)
     } else if (node.has("schedule")) {
       val scheduleTimeZone = if (node.has("scheduleTimeZone")) node.get("scheduleTimeZone").asText else ""
       new ScheduleBasedJob(node.get("schedule").asText, name = name, command = command,
@@ -220,7 +238,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris,  highPriority = highPriority,
         runAsUser = runAsUser, container = container, scheduleTimeZone = scheduleTimeZone,
         environmentVariables = environmentVariables, shell = shell, arguments = arguments, softError = softError,
-        dataProcessingJobType = dataProcessingJobType, constraints = constraints)
+        dataProcessingJobType = dataProcessingJobType, constraints = constraints, lastHost = lastHost)
     } else {
       /* schedule now */
       new ScheduleBasedJob("R1//PT24H", name = name, command = command, epsilon = epsilon, successCount = successCount,
@@ -230,7 +248,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris,  highPriority = highPriority,
         runAsUser = runAsUser, container = container, environmentVariables = environmentVariables, shell = shell,
         arguments = arguments, softError = softError, dataProcessingJobType = dataProcessingJobType,
-        constraints = constraints)
+        constraints = constraints, lastHost = lastHost)
     }
   }
 }

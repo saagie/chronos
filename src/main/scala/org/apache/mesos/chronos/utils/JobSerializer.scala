@@ -107,6 +107,9 @@ class JobSerializer extends JsonSerializer[BaseJob] {
     json.writeFieldName("runAsUser")
     json.writeString(baseJob.runAsUser)
 
+    json.writeFieldName("lastHost")
+    json.writeString(baseJob.lastHost)
+
     if (baseJob.container != null) {
       json.writeFieldName("container")
       json.writeStartObject()
@@ -134,6 +137,27 @@ class JobSerializer extends JsonSerializer[BaseJob] {
         json.writeEndObject()
       }
       json.writeEndArray()
+
+      if (baseJob.container.portMappings.isDefined) {
+        json.writeFieldName("portMappings")
+        json.writeStartArray()
+
+        baseJob.container.portMappings.get.foreach { p =>
+          json.writeStartObject()
+          json.writeFieldName("hostPort")
+          json.writeNumber(p.hostPort)
+
+          json.writeFieldName("containerPort")
+          json.writeNumber(p.containerPort)
+
+          json.writeFieldName("protocol")
+          json.writeString(p.protocol.toString)
+          json.writeEndObject()
+        }
+
+        json.writeEndArray()
+      }
+
       json.writeFieldName("forcePullImage")
       json.writeBoolean(baseJob.container.forcePullImage)
 

@@ -3,13 +3,16 @@ package org.apache.mesos.chronos.scheduler.mesos
 import java.util.logging.Logger
 import javax.inject.Inject
 
+import mesosphere.mesos.protos.RangesResource
+import org.apache.mesos.Protos.ContainerInfo.DockerInfo.PortMapping
 import org.apache.mesos.chronos.scheduler.config.SchedulerConfiguration
-import org.apache.mesos.chronos.scheduler.jobs.BaseJob
+import org.apache.mesos.chronos.scheduler.jobs.{DockerContainer, BaseJob, DependencyBasedJob, ScheduleBasedJob, JobScheduler}
 import com.google.common.base.Charsets
 import com.google.protobuf.ByteString
 import org.apache.mesos.Protos.ContainerInfo.DockerInfo
 import org.apache.mesos.Protos.Environment.Variable
 import org.apache.mesos.Protos._
+import org.apache.mesos.chronos.utils.PortsMatcher
 
 import scala.collection.JavaConverters._
 import scala.collection.Map
@@ -19,10 +22,14 @@ import scala.collection.Map
  * names are valid.
  * @author Florian Leibert (flo@leibert.de)
  */
-class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration) {
+class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler: JobScheduler) {
+  import mesosphere.mesos.protos.Implicits._
+
   final val cpusResourceName = "cpus"
   final val memResourceName = "mem"
   final val diskResourceName = "disk"
+  final val portsResources = "ports"
+
   val taskNameTemplate = "ChronosTask:%s"
   //args|command.
   //  e.g. args: -av (async job), verbose mode
@@ -90,7 +97,7 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration) {
     }
 
     if (job.executor.nonEmpty) {
-      appendExecutorData(taskInfo, job, environment, uriProtos)
+      appendExecutorData(taskInfo, job, environment, uriProtos, offer)
     } else {
       val command = CommandInfo.newBuilder()
       if (job.command.startsWith("http") || job.command.startsWith("ftp")) {
@@ -112,8 +119,23 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration) {
         command.setUser(job.runAsUser)
       }
       taskInfo.setCommand(command.build())
+
+      //TODO refactor
+      val newJob = job match {
+        case job: DependencyBasedJob =>
+          job.copy(lastHost = offer.getHostname)
+        case job: ScheduleBasedJob =>
+          job.copy(lastHost = offer.getHostname)
+      }
+      scheduler.replaceJob(job, newJob)
+
       if (job.container != null) {
-        taskInfo.setContainer(createContainerInfo(job))
+        val portsMatcher = new PortsMatcher(job, offer)
+        val portsOpt: Option[Seq[RangesResource]] = portsMatcher.portRanges
+        if (portsOpt.nonEmpty) {
+          portsOpt.get.foreach(taskInfo.addResources(_))
+        }
+        taskInfo.setContainer(createContainerInfo(newJob, offer, portsOpt))
       }
     }
 
@@ -127,6 +149,55 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration) {
 
     taskInfo
   }
+
+  protected def computeContainerInfo(job: BaseJob, ports: Seq[Long]): DockerContainer = {
+    if (job.container == null) null
+    else {
+      // Fill in Docker container details if necessary
+      val c = job.container
+
+      val portMappings = c.portMappings.map { pms =>
+          pms zip ports map {
+            case (mapping, port) =>
+              // Use case: containerPort = 0 and hostPort = 0
+              //
+              // For apps that have their own service registry and require p2p communication,
+              // they will need to advertise
+              // the externally visible ports that their components come up on.
+              // Since they generally know there container port and advertise that, this is
+              // fixed most easily if the container port is the same as the externally visible host
+              // port.
+              if (mapping.containerPort == 0) {
+                mapping.copy(hostPort = port.toInt, containerPort = port.toInt)
+              }
+              else {
+                mapping.copy(hostPort = port.toInt)
+              }
+          }
+      }
+
+      portMappings match {
+        case None => c
+        case Some(newMappings) => c.copy(portMappings = Option(newMappings))
+      }
+
+      //        builder.mergeFrom(containerWithPortMappings.toMesos())
+
+      // Set NetworkInfo if necessary
+//      job.ipAddress.foreach { ipAddress =>
+//        val ipAddressLabels = Labels.newBuilder().addAllLabels(ipAddress.labels.map {
+//          case (key, value) => Label.newBuilder.setKey(key).setValue(value).build()
+//        }.asJava)
+//        val networkInfo: NetworkInfo.Builder =
+//          NetworkInfo.newBuilder()
+//            .addAllGroups(ipAddress.groups.asJava)
+//            .setLabels(ipAddressLabels)
+//            .addIpAddresses(NetworkInfo.IPAddress.getDefaultInstance)
+//        builder.addNetworkInfos(networkInfo)
+//      }
+    }
+  }
+
 
   def scalarResource(name: String, value: Double, offer: Offer) = {
     // For a given named resource and value,
@@ -152,9 +223,29 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration) {
       .build
   }
 
-  def createContainerInfo(job: BaseJob): ContainerInfo = {
+  def createContainerInfo(job: BaseJob, offer: Offer,portsOpt: Option[Seq[RangesResource]]): ContainerInfo = {
+
+    val ports = portsOpt.map {
+      _.flatMap(_.ranges.flatMap(_.asScala()).to[Seq])
+    }
+
+    val container: Option[DockerContainer] = if(ports.nonEmpty) Option(computeContainerInfo(job, ports.get)) else None
+
+    //TODO refactor
+    var currentJob: BaseJob = job
+    if (container.isDefined) {
+      val newJob = job match {
+        case job: DependencyBasedJob =>
+          job.copy(container = container.get, lastHost = offer.getHostname)
+        case job: ScheduleBasedJob =>
+          job.copy(container = container.get, lastHost = offer.getHostname)
+      }
+      scheduler.replaceJob(job, newJob)
+      currentJob = newJob
+    }
+
     val builder = ContainerInfo.newBuilder()
-    job.container.volumes.map { v =>
+    currentJob.container.volumes.map { v =>
       val volumeBuilder = Volume.newBuilder().setContainerPath(v.containerPath)
       v.hostPath.map { h =>
         volumeBuilder.setHostPath(h)
@@ -166,16 +257,28 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration) {
 
       volumeBuilder.build()
     }.foreach(builder.addVolumes)
+
+    val dockerBuilder = DockerInfo.newBuilder()
+
+    currentJob.container.portMappings.get.map { p =>
+      val portMappingBuilder = PortMapping.newBuilder().setContainerPort(p.containerPort)
+      portMappingBuilder.setHostPort(p.hostPort)
+      portMappingBuilder.setProtocol(p.protocol.toString)
+
+
+      portMappingBuilder.build()
+    }.foreach(dockerBuilder.addPortMappings)
+
     builder.setType(ContainerInfo.Type.DOCKER)
-    builder.setDocker(DockerInfo.newBuilder()
-      .setImage(job.container.image)
-      .setNetwork(DockerInfo.Network.valueOf(job.container.network.toString.toUpperCase))
-      .setForcePullImage(job.container.forcePullImage)
-      .addAllParameters(job.container.parameters.map(_.toProto).asJava)
+    builder.setDocker(dockerBuilder
+      .setImage(currentJob.container.image)
+      .setNetwork(DockerInfo.Network.valueOf(currentJob.container.network.toString.toUpperCase))
+      .setForcePullImage(currentJob.container.forcePullImage)
+      .addAllParameters(currentJob.container.parameters.map(_.toProto).asJava)
       .build()).build
   }
 
-  def appendExecutorData(taskInfo: TaskInfo.Builder, job: BaseJob, environment: Environment.Builder, uriProtos: Seq[CommandInfo.URI]) {
+  def appendExecutorData(taskInfo: TaskInfo.Builder, job: BaseJob, environment: Environment.Builder, uriProtos: Seq[CommandInfo.URI], offer: Offer) {
     log.info("Appending executor:" + job.executor + ", flags:" + job.executorFlags + ", command:" + job.command)
     val command = CommandInfo.newBuilder()
       .setValue(job.executor)
@@ -188,7 +291,19 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration) {
       .setExecutorId(ExecutorID.newBuilder().setValue(job.name))
       .setCommand(command.build())
     if (job.container != null) {
-      executor.setContainer(createContainerInfo(job))
+      val portsMatcher = new PortsMatcher(job, offer)
+      val portsOpt: Option[Seq[RangesResource]] = portsMatcher.portRanges
+
+      //TODO refactor
+      val newJob = job match {
+        case job: DependencyBasedJob =>
+          job.copy(lastHost = offer.getHostname)
+        case job: ScheduleBasedJob =>
+          job.copy(lastHost = offer.getHostname)
+      }
+      scheduler.replaceJob(job, newJob)
+
+      executor.setContainer(createContainerInfo(job, offer, portsOpt))
     }
     taskInfo.setExecutor(executor)
       .setData(getDataBytes(job.executorFlags, job.command))

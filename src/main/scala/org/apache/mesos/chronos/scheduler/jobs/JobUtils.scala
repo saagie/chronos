@@ -189,7 +189,8 @@ object JobUtils {
           environmentVariables = job.environmentVariables,
           shell = job.shell,
           arguments = job.arguments,
-          constraints = job.constraints
+          constraints = job.constraints,
+          lastHost = job.lastHost
         )
       case j: ScheduleBasedJob =>
         new ScheduleBasedJob(
@@ -220,7 +221,8 @@ object JobUtils {
           environmentVariables = job.environmentVariables,
           shell = job.shell,
           arguments = job.arguments,
-          constraints = job.constraints
+          constraints = job.constraints,
+          lastHost = job.lastHost
         )
     }
     jobWithArguments

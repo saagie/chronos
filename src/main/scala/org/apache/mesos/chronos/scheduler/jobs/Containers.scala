@@ -1,6 +1,9 @@
 package org.apache.mesos.chronos.scheduler.jobs
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import org.apache.mesos.Protos
+import org.apache.mesos.Protos.ContainerInfo.DockerInfo
+import org.apache.mesos.chronos.scheduler.jobs.Protocol.Protocol
 
 object VolumeMode extends Enumeration {
   type VolumeMode = Value
@@ -16,6 +19,13 @@ object NetworkMode extends Enumeration {
   val BRIDGE, HOST = Value
 }
 
+object Protocol extends Enumeration {
+  type Protocol = Value
+
+  // read-write and read-only.
+  val TCP, UDP = Value
+}
+
 import org.apache.mesos.chronos.scheduler.jobs.NetworkMode._
 import org.apache.mesos.chronos.scheduler.jobs.VolumeMode._
 
@@ -24,9 +34,19 @@ case class Volume(
                    @JsonProperty containerPath: String,
                    @JsonProperty mode: Option[VolumeMode])
 
+case class PortMappings(
+                   @JsonProperty containerPort: Int,
+                   @JsonProperty hostPort: Int,
+                   @JsonProperty protocol: Protocol = Protocol.TCP){
+
+}
+
+
+
 case class DockerContainer(
                             @JsonProperty image: String,
                             @JsonProperty volumes: Seq[Volume],
                             @JsonProperty parameters: Seq[Parameter],
                             @JsonProperty network: NetworkMode = NetworkMode.HOST,
-                            @JsonProperty forcePullImage: Boolean = false)
+                            @JsonProperty forcePullImage: Boolean = false,
+                            @JsonProperty portMappings: Option[Seq[PortMappings]] = None)
