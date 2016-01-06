@@ -14,7 +14,7 @@ class HttpClient(val endpointUrl: String,
 
   private[this] val log = Logger.getLogger(getClass.getName)
 
-  def sendNotification(job: BaseJob, to: String, subject: String, message: Option[String]) {
+  def sendNotification(job: BaseJob, to: String, subject: String, message: Option[String], status: String) {
 
     val jsonBuffer = new StringWriter
     val factory = new JsonFactory()
@@ -22,7 +22,7 @@ class HttpClient(val endpointUrl: String,
 
     // Create the payload
     generator.writeStartObject()
-    
+
     if (subject != null && subject.nonEmpty) {
       generator.writeStringField("subject", subject)
     }
@@ -32,6 +32,8 @@ class HttpClient(val endpointUrl: String,
     if (to != null && to.nonEmpty) {
       generator.writeStringField("to", to)
     }
+
+    generator.writeStringField("status", status)
     generator.writeStringField("job", job.name.toString())
     generator.writeStringField("command", job.command.toString())
     generator.writeStringField("cpus", job.cpus.toString())
@@ -48,7 +50,16 @@ class HttpClient(val endpointUrl: String,
     generator.writeStringField("retries", job.retries.toString())
     generator.writeStringField("successCount", job.successCount.toString())
     generator.writeStringField("uris", job.uris.mkString(","))
+    generator.writeStringField("lastHost", job.lastHost)
 
+    generator.writeFieldName("lastPorts")
+    generator.writeStartArray()
+
+    job.container.portMappings.get.foreach { p =>
+      generator.writeNumber(p.hostPort)
+    }
+
+    generator.writeEndArray()
 
     generator.writeEndObject()
     generator.flush()
