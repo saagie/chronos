@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer,
 import org.joda.time.Period
 
 import scala.collection.JavaConversions._
+import scala.collection.immutable.Seq
 import scala.util.Try
 
 object JobDeserializer {
@@ -171,11 +172,25 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         }.foreach(volumes.add)
       }
 
+      val portMappings = scala.collection.mutable.ListBuffer[PortMappings]()
+      if (containerNode.has("portMappings")) {
+        containerNode.get("portMappings").elements().map {
+          case node: ObjectNode =>
+            val hostPort =
+              if (node.has("hostPort")) node.get("hostPort").asInt()
+              else 0
+            val protocol =
+              if (node.has("protocol")) Protocol.withName(node.get("protocol").asText.toUpperCase)
+              else Protocol.TCP
+            PortMappings(node.get("containerPort").asInt(), hostPort, protocol)
+        }.foreach(portMappings.add)
+      }
+
       val forcePullImage =
         if (containerNode.has("forcePullImage") && containerNode.get("forcePullImage") != null)
           Try(containerNode.get("forcePullImage").asText.toBoolean).getOrElse(false)
         else false
-      container = DockerContainer(containerNode.get("image").asText, volumes, networkMode, forcePullImage)
+      container = DockerContainer(containerNode.get("image").asText, volumes.to[Seq], networkMode, forcePullImage, Option(portMappings.to[Seq]))
     }
 
     val constraints = scala.collection.mutable.ListBuffer[Constraint]()
