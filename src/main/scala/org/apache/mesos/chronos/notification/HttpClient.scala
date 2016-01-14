@@ -58,8 +58,10 @@ class HttpClient(val endpointUrl: String,
     generator.writeFieldName("lastPorts")
     generator.writeStartArray()
 
-    job.container.portMappings.get.foreach { p =>
-      generator.writeNumber(p.hostPort)
+    if (job.container != null) {
+      job.container.portMappings.get.foreach { p =>
+        generator.writeNumber(p.hostPort)
+      }
     }
 
     generator.writeEndArray()
