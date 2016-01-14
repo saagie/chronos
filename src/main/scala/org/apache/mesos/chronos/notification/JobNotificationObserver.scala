@@ -38,6 +38,11 @@ class JobNotificationObserver @Inject()(val notificationClients: List[ActorRef] 
         val j = job.right.get
         sendNotification(j, "%s [Chronos] job '%s' failed".format(clusterPrefix, j.name), None, "failed", Some(Right(taskStatus)))
       }
+    case JobKilled(job, taskStatus, attempt) =>
+      if (job.isRight) {
+        val j = job.right.get
+        sendNotification(j, "%s [Chronos] job '%s' killed".format(clusterPrefix, j.name), None, "killed", Some(Right(taskStatus)))
+      }
 
     case JobExpired(job, taskId) =>
       sendNotification(job, "%s [Chronos] job '%s' expired".format(clusterPrefix, job.name), None, "expired",  Some(Left(taskId)))
