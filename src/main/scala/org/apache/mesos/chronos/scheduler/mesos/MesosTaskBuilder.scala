@@ -16,10 +16,12 @@ import org.apache.mesos.chronos.utils.PortsMatcher
 
 import scala.collection.JavaConverters._
 import scala.collection.Map
+
 /**
  * Helpers for dealing dealing with tasks such as generating taskIds based on jobs, parsing them and ensuring that their
  * names are valid.
- * @author Florian Leibert (flo@leibert.de)
+  *
+  * @author Florian Leibert (flo@leibert.de)
  */
 class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler: JobScheduler) {
   import mesosphere.mesos.protos.Implicits._
