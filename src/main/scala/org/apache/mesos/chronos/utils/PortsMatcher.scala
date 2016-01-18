@@ -8,7 +8,6 @@ import org.apache.mesos.chronos.scheduler.jobs.{PortMappings, BaseJob}
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
-import scala.collection.immutable.Seq
 import scala.util.Random
 
 /**
@@ -45,19 +44,58 @@ class PortsMatcher(
   } yield port
 
   private[this] def portsWithRoles: Option[Seq[PortWithRole]] = {
-    val portMappings: Option[Seq[PortMappings]] =
+
+    val portMappings: Option[Seq[PortMappings]] = if (job.container != null)
       for {
         pms <- job.container.portMappings if pms.nonEmpty
       } yield pms
+    else None
 
-    portMappings match {
-      case (None) => // optimization for empty special case
+    (job.ports, portMappings) match {
+      case (Nil,None) => // optimization for empty special case
         Some(Seq.empty)
 
-      case (Some(mappings)) =>
+      case (appPortSpec, Some(mappings)) =>
         // We use the mappings from the containers if they are available and ignore any other port specification.
         // We cannot warn about this because we autofill the ports field.
         mappedPortRanges(mappings)
+
+      case (appPorts, None) if job.requirePorts =>
+        findPortsInOffer(appPorts, failLog = true)
+
+      case (appPorts, None) =>
+        randomPorts(appPorts.size)
+    }
+  }
+
+  /**
+    * Try to find supplied ports in offer. Returns `None` if not all ports were found.
+    */
+  private[this] def findPortsInOffer(requiredPorts: Seq[Int], failLog: Boolean): Option[Seq[PortWithRole]] = {
+    takeEnoughPortsOrNone(expectedSize = requiredPorts.size) {
+      requiredPorts.iterator.map { (port: Int) =>
+        offeredPortRanges.find(_.contains(port)).map { offeredRange =>
+          PortWithRole(offeredRange.role, port)
+        } orElse {
+          if (failLog)
+            log.info(
+              s"Offer [${offer.getId.getValue}]. Couldn't find host port $port (of ${requiredPorts.mkString(", ")}) " +
+                s"in any offered range for app [${job.name}]")
+          None
+        }
+      }
+    }
+  }
+
+  /**
+    * Choose random ports from offer.
+    */
+  private[this] def randomPorts(numberOfPorts: Int): Option[Seq[PortWithRole]] = {
+    takeEnoughPortsOrNone(expectedSize = numberOfPorts) {
+      shuffledAvailablePorts.map(Some(_))
+    } orElse {
+      log.info(s"Offer [${offer.getId.getValue}]. Couldn't find $numberOfPorts ports in offer for app [${job.name}]")
+      None
     }
   }
 

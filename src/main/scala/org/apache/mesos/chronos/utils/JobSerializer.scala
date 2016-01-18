@@ -163,6 +163,20 @@ class JobSerializer extends JsonSerializer[BaseJob] {
       json.writeEndObject()
     }
 
+    json.writeFieldName("ports")
+    json.writeStartArray()
+    baseJob.ports.foreach { p =>
+      json.writeNumber(p)
+    }
+    json.writeEndArray()
+
+    json.writeFieldName("currentPorts")
+    json.writeStartArray()
+    baseJob.currentPorts.foreach { p =>
+      json.writeNumber(p)
+    }
+    json.writeEndArray()
+
     json.writeFieldName("constraints")
     json.writeStartArray()
     baseJob.constraints.foreach { v =>

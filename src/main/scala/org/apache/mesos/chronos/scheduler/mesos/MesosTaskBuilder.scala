@@ -16,12 +16,12 @@ import org.apache.mesos.chronos.utils.PortsMatcher
 
 import scala.collection.JavaConverters._
 import scala.collection.Map
-import scala.collection.immutable.Seq
 
 /**
  * Helpers for dealing dealing with tasks such as generating taskIds based on jobs, parsing them and ensuring that their
  * names are valid.
- * @author Florian Leibert (flo@leibert.de)
+  *
+  * @author Florian Leibert (flo@leibert.de)
  */
 class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler: JobScheduler) {
   import mesosphere.mesos.protos.Implicits._
@@ -80,6 +80,21 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler
       .addVariables(Variable.newBuilder()
       .setName("CHRONOS_RESOURCE_DISK").setValue(job.disk.toString))
 
+    val portsMatcher = new PortsMatcher(job, offer)
+    val portsOpt: Option[Seq[RangesResource]] = portsMatcher.portRanges
+    val ports = portsOpt.map {
+      _.flatMap(_.ranges.flatMap(_.asScala()).to[Seq])
+    }
+
+    ports.map { u =>
+      val containerPorts = for (pms <- job.portMappings) yield pms.map(_.containerPort)
+      val declaredPorts = containerPorts.getOrElse(job.ports)
+      val portsEnvMap: Map[String, String] = portsEnv(declaredPorts, u).toMap
+      portsEnvMap.map(env =>
+        environment.addVariables(Variable.newBuilder().setName(env._1).setValue(env._2))
+      )
+    }
+
     // If the job defines custom environment variables, add them to the builder
     // Don't add them if they already exist to prevent overwriting the defaults
     val builtinEnvNames = environment.getVariablesList.asScala.map(_.getName).toSet
@@ -123,15 +138,13 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler
       //TODO refactor
       val newJob = job match {
         case job: DependencyBasedJob =>
-          job.copy(lastHost = offer.getHostname)
+          job.copy(lastHost = offer.getHostname, currentPorts = if(ports.isDefined) ports.get.map(_.toInt) else List())
         case job: ScheduleBasedJob =>
-          job.copy(lastHost = offer.getHostname)
+          job.copy(lastHost = offer.getHostname, currentPorts = if(ports.isDefined) ports.get.map(_.toInt) else List())
       }
       scheduler.replaceJob(job, newJob)
 
       if (job.container != null) {
-        val portsMatcher = new PortsMatcher(job, offer)
-        val portsOpt: Option[Seq[RangesResource]] = portsMatcher.portRanges
         if (portsOpt.nonEmpty) {
           portsOpt.get.foreach(taskInfo.addResources(_))
         }
@@ -312,4 +325,29 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler
   }
 
   def getExecutorName(x: String) = "%s".format(x)
+
+  def portsEnv(definedPorts: Seq[Int], assignedPorts: Seq[Long]): Map[String, String] = {
+    if (assignedPorts.isEmpty) {
+      Map.empty
+    }
+    else {
+      val env = Map.newBuilder[String, String]
+
+      assignedPorts.zipWithIndex.foreach {
+        case (p, n) =>
+          env += (s"PORT$n" -> p.toString)
+      }
+
+      definedPorts.zip(assignedPorts).foreach {
+        case (defined, assigned) =>
+          if (defined != 0) {
+            env += (s"PORT_$defined" -> assigned.toString)
+          }
+      }
+
+      env += ("PORT" -> assignedPorts.head.toString)
+      env += ("PORTS" -> assignedPorts.mkString(","))
+      env.result()
+    }
+  }
 }
