@@ -1,9 +1,9 @@
 package org.apache.mesos.chronos.utils
 
-import org.apache.mesos.chronos.scheduler.jobs.{BaseJob, DependencyBasedJob, ScheduleBasedJob}
-import org.apache.mesos.chronos.scheduler.jobs.constraints.{LikeConstraint, EqualsConstraint}
 import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.{JsonSerializer, SerializerProvider}
+import org.apache.mesos.chronos.scheduler.jobs.constraints.{EqualsConstraint, LikeConstraint}
+import org.apache.mesos.chronos.scheduler.jobs.{BaseJob, DependencyBasedJob, ScheduleBasedJob}
 
 /**
  * Custom JSON serializer for jobs.
@@ -191,6 +191,16 @@ class JobSerializer extends JsonSerializer[BaseJob] {
           json.writeString(LikeConstraint.OPERATOR)
           json.writeString(value)
       }
+      json.writeEndArray()
+    }
+    json.writeEndArray()
+
+    json.writeFieldName("labels")
+    json.writeStartArray()
+    baseJob.labels.foreach { m =>
+      json.writeStartArray()
+      json.writeString(m._1)
+      json.writeString(m._2)
       json.writeEndArray()
     }
     json.writeEndArray()
