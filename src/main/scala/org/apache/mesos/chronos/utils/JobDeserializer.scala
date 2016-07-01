@@ -224,6 +224,12 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
       }
     }
 
+    val labels  = scala.collection.mutable.Map[String,String]()
+    if (node.has("labels")) {
+      for (c <- node.path("labels")) {
+        labels += c.get(0).asText() -> c.get(1).asText()
+      }
+    }
 
     var parentList = scala.collection.mutable.ListBuffer[String]()
     if (node.has("parents")) {
@@ -238,7 +244,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris, highPriority = highPriority,
         runAsUser = runAsUser, container = container, environmentVariables = environmentVariables, shell = shell,
         arguments = arguments, softError = softError, dataProcessingJobType = dataProcessingJobType,
-        constraints = constraints, lastHost = lastHost, ports = ports, requirePorts = requirePorts, currentPorts = currentPorts)
+        constraints = constraints, lastHost = lastHost, ports = ports, requirePorts = requirePorts, currentPorts = currentPorts, labels = labels.toMap)
     } else if (node.has("schedule")) {
       val scheduleTimeZone = if (node.has("scheduleTimeZone")) node.get("scheduleTimeZone").asText else ""
       new ScheduleBasedJob(node.get("schedule").asText, name = name, command = command,
@@ -249,7 +255,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris, highPriority = highPriority,
         runAsUser = runAsUser, container = container, scheduleTimeZone = scheduleTimeZone,
         environmentVariables = environmentVariables, shell = shell, arguments = arguments, softError = softError,
-        dataProcessingJobType = dataProcessingJobType, constraints = constraints, lastHost = lastHost, ports = ports, requirePorts = requirePorts, currentPorts = currentPorts)
+        dataProcessingJobType = dataProcessingJobType, constraints = constraints, lastHost = lastHost, ports = ports, requirePorts = requirePorts, currentPorts = currentPorts, labels = labels.toMap)
     } else {
       /* schedule now */
       new ScheduleBasedJob("R1//PT24H", name = name, command = command, epsilon = epsilon, successCount = successCount,
@@ -259,7 +265,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris, highPriority = highPriority,
         runAsUser = runAsUser, container = container, environmentVariables = environmentVariables, shell = shell,
         arguments = arguments, softError = softError, dataProcessingJobType = dataProcessingJobType,
-        constraints = constraints, lastHost = lastHost, ports = ports, requirePorts = requirePorts, currentPorts = currentPorts)
+        constraints = constraints, lastHost = lastHost, ports = ports, requirePorts = requirePorts, currentPorts = currentPorts, labels = labels.toMap)
     }
   }
 }
