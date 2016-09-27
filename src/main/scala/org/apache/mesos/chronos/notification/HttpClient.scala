@@ -1,11 +1,10 @@
 package org.apache.mesos.chronos.notification
 
-import java.io.{DataOutputStream, StringWriter}
+import java.io.{BufferedWriter, DataOutputStream, OutputStreamWriter, StringWriter}
 import java.net.{HttpURLConnection, URL}
 import java.util.logging.Logger
 
 import org.apache.commons.codec.binary.Base64
-
 import org.apache.mesos.chronos.scheduler.jobs.BaseJob
 import com.fasterxml.jackson.core.JsonFactory
 import org.joda.time.DateTime
@@ -99,8 +98,9 @@ class HttpClient(val endpointUrl: String,
       }
 
       val outputStream = new DataOutputStream(connection.getOutputStream)
-      outputStream.writeBytes(payload)
-      outputStream.flush()
+      val writer = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"))
+      writer.write(payload)
+      writer.close()
       outputStream.close()
 
       log.info("Sent message to http endpoint. Response code:" +
