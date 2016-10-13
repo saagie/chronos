@@ -125,9 +125,12 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler
             .setValue(uri)
             .build()
         })
-        command.setValue(job.command)
-          .setShell(job.shell)
-          .setEnvironment(environment)
+        job.command match {
+          case "" => command.setShell(false)
+          case _ => command.setValue(job.command)
+            .setShell(job.shell)
+        }
+        command.setEnvironment(environment)
           .addAllArguments(job.arguments.asJava)
           .addAllUris(uriProtos.asJava)
       }
