@@ -57,6 +57,8 @@ trait BaseJob {
 
   def mem: Double = 0
 
+  def gpus: Double = 0
+
   def disabled: Boolean = false
 
   def errorsSinceLastSuccess: Long = 0L
@@ -119,6 +121,7 @@ case class ScheduleBasedJob(
                              @JsonProperty override val cpus: Double = 0,
                              @JsonProperty override val disk: Double = 0,
                              @JsonProperty override val mem: Double = 0,
+                             @JsonProperty override val gpus: Double = 0,
                              @JsonProperty override val disabled: Boolean = false,
                              @JsonProperty override val errorsSinceLastSuccess: Long = 0L,
                              @JsonProperty override val uris: Seq[String] = List(),
@@ -160,6 +163,7 @@ case class DependencyBasedJob(
                                @JsonProperty override val cpus: Double = 0,
                                @JsonProperty override val disk: Double = 0,
                                @JsonProperty override val mem: Double = 0,
+                               @JsonProperty override val gpus: Double = 0,
                                @JsonProperty override val disabled: Boolean = false,
                                @JsonProperty override val errorsSinceLastSuccess: Long = 0L,
                                @JsonProperty override val uris: Seq[String] = List(),

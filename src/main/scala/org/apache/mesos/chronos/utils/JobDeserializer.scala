@@ -109,6 +109,11 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
       else if (JobDeserializer.config != null) JobDeserializer.config.mesosTaskMem()
       else 0
 
+    val gpus =
+      if (node.has("gpus") && node.get("gpus") != null && node.get("gpus").asDouble != 0) node.get("gpus").asDouble
+      else if (JobDeserializer.config != null) JobDeserializer.config.mesosTaskGpu()
+      else 0
+
     val errorsSinceLastSuccess =
       if (node.has("errorsSinceLastSuccess") && node.get("errorsSinceLastSuccess") != null)
         node.get("errorsSinceLastSuccess").asLong
@@ -239,7 +244,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         name = name, command = command, epsilon = epsilon, successCount = successCount, errorCount = errorCount,
         executor = executor, executorFlags = executorFlags, retries = retries, owner = owner,
         ownerName = ownerName, description = description, lastError = lastError, lastSuccess = lastSuccess,
-        async = async, cpus = cpus, disk = disk, mem = mem, disabled = disabled,
+        async = async, cpus = cpus, disk = disk, mem = mem, gpus = gpus, disabled = disabled,
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris, highPriority = highPriority,
         runAsUser = runAsUser, container = container, environmentVariables = environmentVariables, shell = shell,
         arguments = arguments, softError = softError, dataProcessingJobType = dataProcessingJobType,
@@ -250,7 +255,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
         epsilon = epsilon, successCount = successCount, errorCount = errorCount, executor = executor,
         executorFlags = executorFlags, retries = retries, owner = owner, ownerName = ownerName,
         description = description, lastError = lastError, lastSuccess = lastSuccess, async = async,
-        cpus = cpus, disk = disk, mem = mem, disabled = disabled,
+        cpus = cpus, disk = disk, mem = mem, gpus = gpus, disabled = disabled,
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris, highPriority = highPriority,
         runAsUser = runAsUser, container = container, scheduleTimeZone = scheduleTimeZone,
         environmentVariables = environmentVariables, shell = shell, arguments = arguments, softError = softError,
@@ -260,7 +265,7 @@ class JobDeserializer extends JsonDeserializer[BaseJob] {
       new ScheduleBasedJob("R1//PT24H", name = name, command = command, epsilon = epsilon, successCount = successCount,
         errorCount = errorCount, executor = executor, executorFlags = executorFlags, retries = retries, owner = owner,
         ownerName = ownerName, description = description, lastError = lastError, lastSuccess = lastSuccess,
-        async = async, cpus = cpus, disk = disk, mem = mem, disabled = disabled,
+        async = async, cpus = cpus, disk = disk, mem = mem, gpus = gpus, disabled = disabled,
         errorsSinceLastSuccess = errorsSinceLastSuccess, uris = uris, highPriority = highPriority,
         runAsUser = runAsUser, container = container, environmentVariables = environmentVariables, shell = shell,
         arguments = arguments, softError = softError, dataProcessingJobType = dataProcessingJobType,

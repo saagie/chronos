@@ -1,15 +1,16 @@
 package org.apache.mesos.chronos.scheduler.mesos
 
-import java.io.{ IOException, FileInputStream }
+import java.io.{FileInputStream, IOException}
 import java.nio.file.attribute.PosixFilePermission
-import java.nio.file.{ Paths, Files }
+import java.nio.file.{Files, Paths}
 import java.util.logging.Logger
 
 import com.google.protobuf.ByteString
 import mesosphere.chaos.http.HttpConf
-import org.apache.mesos.Protos.{ Credential, FrameworkID, FrameworkInfo }
-import org.apache.mesos.chronos.scheduler.config.SchedulerConfiguration
-import org.apache.mesos.{ Protos, MesosSchedulerDriver, Scheduler, SchedulerDriver }
+import org.apache.mesos.Protos.FrameworkInfo.Capability
+import org.apache.mesos.Protos.{Credential, FrameworkID, FrameworkInfo}
+import org.apache.mesos.chronos.scheduler.config.{Features, SchedulerConfiguration}
+import org.apache.mesos.{MesosSchedulerDriver, Protos, Scheduler, SchedulerDriver}
 
 import scala.collection.JavaConverters.asScalaSetConverter
 
@@ -66,6 +67,11 @@ class SchedulerDriverBuilder {
 
       // set the authentication principal, if provided
       config.mesosAuthenticationPrincipal.get.foreach(frameworkInfoBuilder.setPrincipal)
+
+      if (config.isFeatureSet(Features.GPU_RESOURCES)) {
+        frameworkInfoBuilder.addCapabilities(Capability.newBuilder().setType(Capability.Type.GPU_RESOURCES))
+        log.info("GPU_RESOURCES feature enabled.")
+      }
 
       frameworkInfoBuilder.build()
     }

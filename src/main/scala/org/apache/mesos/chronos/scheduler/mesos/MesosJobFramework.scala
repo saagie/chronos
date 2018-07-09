@@ -62,12 +62,13 @@ class MesosJobFramework @Inject()(
     log.warning("Disconnected")
   }
 
-  def getReservedResources(offer: Offer): (Double, Double) = {
+  def getReservedResources(offer: Offer): (Double, Double, Double) = {
     val resources = offer.getResourcesList.asScala
     val reservedResources = resources.filter({ x => x.hasRole && x.getRole != "*"})
     (
       getScalarValueOrElse(reservedResources.find(x => x.getName == "cpus"), 0),
-      getScalarValueOrElse(reservedResources.find(x => x.getName == "mem"), 0)
+      getScalarValueOrElse(reservedResources.find(x => x.getName == "mem"), 0),
+      getScalarValueOrElse(reservedResources.find(x => x.getName == "gpus"), 0)
       )
   }
 
@@ -307,11 +308,13 @@ class MesosJobFramework @Inject()(
 
   class Resources(var cpus: Double,
                   var mem: Double,
-                  var disk: Double) {
+                  var disk: Double,
+                  var gpus: Double) {
     def this(job: BaseJob) {
       this(
         if (job.cpus > 0) job.cpus else config.mesosTaskCpu(),
         if (job.mem > 0) job.mem else config.mesosTaskMem(),
+        if (job.gpus > 0) job.gpus else config.mesosTaskGpu(),
         if (job.disk > 0) job.disk else config.mesosTaskDisk()
       )
     }
@@ -319,17 +322,19 @@ class MesosJobFramework @Inject()(
     def canSatisfy(needed: Resources): Boolean = {
       (this.cpus >= needed.cpus) &&
         (this.mem >= needed.mem) &&
-        (this.disk >= needed.disk)
+        (this.disk >= needed.disk) &&
+        (this.disk >= needed.gpus)
     }
 
     def -=(that: Resources) {
       this.cpus -= that.cpus
       this.mem -= that.mem
       this.disk -= that.disk
+      this.gpus -= that.gpus
     }
 
     override def toString: String = {
-      "cpus: " + this.cpus + " mem: " + this.mem + " disk: " + this.disk
+      "cpus: " + this.cpus + " mem: " + this.mem + " disk: " + this.disk+ " gpus: " + this.gpus
     }
   }
 
@@ -346,7 +351,8 @@ class MesosJobFramework @Inject()(
       new Resources(
         getScalarValueOrElse(resources.find(_.getName == "cpus"), 0),
         getScalarValueOrElse(resources.find(_.getName == "mem"), 0),
-        getScalarValueOrElse(resources.find(_.getName == "disk"), 0)
+        getScalarValueOrElse(resources.find(_.getName == "disk"), 0),
+        getScalarValueOrElse(resources.find(_.getName == "gpus"), 0)
       )
     }
   }

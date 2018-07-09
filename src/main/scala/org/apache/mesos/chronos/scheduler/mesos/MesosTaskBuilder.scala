@@ -31,6 +31,7 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler
   final val memResourceName = "mem"
   final val diskResourceName = "disk"
   final val portsResources = "ports"
+  final val gpuResourceName = "gpus"
 
   val taskNameTemplate = "ChronosTask:%s"
   //args|command.
@@ -80,6 +81,8 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler
       .setName("CHRONOS_RESOURCE_CPU").setValue(job.cpus.toString))
       .addVariables(Variable.newBuilder()
       .setName("CHRONOS_RESOURCE_DISK").setValue(job.disk.toString))
+      .addVariables(Variable.newBuilder()
+        .setName("CHRONOS_RESOURCE_GPU").setValue(job.gpus.toString))
 
     val portsMatcher = new PortsMatcher(job, offer)
     val portsOpt: Option[Seq[RangesResource]] = portsMatcher.portRanges
@@ -179,10 +182,12 @@ class MesosTaskBuilder @Inject()(val conf: SchedulerConfiguration, val scheduler
     val mem = if (job.mem > 0) job.mem else conf.mesosTaskMem()
     val cpus = if (job.cpus > 0) job.cpus else conf.mesosTaskCpu()
     val disk = if (job.disk > 0) job.disk else conf.mesosTaskDisk()
+    val gpus = if (job.gpus > 0) job.gpus else conf.mesosTaskGpu()
     taskInfo
       .addResources(scalarResource(cpusResourceName, cpus, offer))
       .addResources(scalarResource(memResourceName, mem, offer))
       .addResources(scalarResource(diskResourceName, disk, offer))
+      .addResources(scalarResource(gpuResourceName, gpus, offer))
 
     taskInfo
   }

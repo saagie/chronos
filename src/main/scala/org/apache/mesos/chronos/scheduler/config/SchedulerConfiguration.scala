@@ -6,9 +6,10 @@ import org.rogach.scallop.ScallopConf
 
 
 /**
- * Configuration values that may be parsed from a YAML file.
- * @author Florian Leibert (flo@leibert.de)
- */
+  * Configuration values that may be parsed from a YAML file.
+  *
+  * @author Florian Leibert (flo@leibert.de)
+  */
 trait SchedulerConfiguration extends ScallopConf {
 
   lazy val master = opt[String]("master",
@@ -91,6 +92,9 @@ trait SchedulerConfiguration extends ScallopConf {
   lazy val mesosTaskDisk = opt[Double]("mesos_task_disk",
     descr = "Amount of disk capacity to request from Mesos for each task (MB)",
     default = Some(256.0))
+  lazy val mesosTaskGpu = opt[Int]("mesos_task_gpu",
+    descr = "Number of GPUs to request from Mesos for each task",
+    default = Some(0))
   lazy val mesosCheckpoint = opt[Boolean]("mesos_checkpoint",
     descr = "Enable checkpointing in Mesos",
     default = Some(true))
@@ -130,6 +134,13 @@ trait SchedulerConfiguration extends ScallopConf {
     descr = "Do not ask for all offers (also already seen ones) more often than this interval (ms). (Default: 5000)",
     default = Some(5000))
 
+  lazy val features = opt[String]("enable_features",
+    descr = s"A comma-separated list of features. Available features are: ${Features.description}",
+    required = false,
+    default = None,
+    noshort = true,
+    validate = validateFeatures
+  )
 
   def zooKeeperHostAddresses: Seq[InetSocketAddress] =
     for (s <- zookeeperServers().split(",")) yield {
@@ -148,4 +159,23 @@ trait SchedulerConfiguration extends ScallopConf {
   def zooKeeperStatePath = "%s/state".format(zooKeeperPath())
 
   def zooKeeperCandidatePath = "%s/candidate".format(zooKeeperPath())
+
+  lazy val availableFeatures: Set[String] = features.get.map(parseFeatures).getOrElse(Set.empty)
+
+  private[this] def parseFeatures(str: String): Set[String] =
+    str.split(',').map(_.trim).filter(_.nonEmpty).toSet
+
+  private[this] def validateFeatures(str: String): Boolean = {
+    val parsed = parseFeatures(str)
+    // throw exceptions for better error messages
+    val unknownFeatures = parsed.filter(!Features.availableFeatures.contains(_))
+    lazy val unknownFeaturesString = unknownFeatures.mkString(", ")
+    require(
+      unknownFeatures.isEmpty,
+      s"Unknown features specified: $unknownFeaturesString. Available features are: ${Features.description}"
+    )
+    true
+  }
+
+  def isFeatureSet(name: String): Boolean = availableFeatures.contains(name)
 }
